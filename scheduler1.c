@@ -56,6 +56,7 @@ void scheduler(char* outfile, int limit, int total){
 	//Call to signal handler for ctrl-c
 	signal(SIGINT, intHandler);
 	increment = rand() % 5000000;
+	printf("Increment: %ld; quantum: %ld \n", increment, quantum);
 	//While loop keeps running until all children are dead, ctrl-c, or time is reached.
 	while((alive > 0) && (keepRunning == 1) && (timeFlag == 0)){
 		time(&when2);
@@ -70,11 +71,11 @@ void scheduler(char* outfile, int limit, int total){
 			if(shmPTR[0] >= (launchTime + timeBetween)){
 				if((pid[i] = fork()) == 0){
 				//Converting key, shmID and life to char* for passing to exec.
+					printf("Time of child split: %ld \n", shmPTR[0]);
 					sprintf(parameter1, "%li", key);
 					sprintf(parameter2, "%li", shmID);
 					sprintf(parameter3, "%li", quantum);
 					char * args[] = {parameter1, parameter2, parameter3, NULL};
-					fprintf(outPut, "Child process %d launched with %s lifetime.\n", getpid(), parameter3);
 					execvp("./child\0", args);
 				}
 				else{
