@@ -31,7 +31,7 @@ void scheduler(char* outfile, int limit, int total){
 	//Pointer for the shared memory timer
 	unsigned long * shmPTR;
 	//Character pointers for arguments to pass through exec
-	char * parameter[32], parameter1[32], parameter2[32], parameter3[32], parameter4[32];
+	char * parameter[32], parameter1[32], parameter2[32], parameter3[32];
 	pid_t pid[total], endID = 1; 
 	//Time variables for the time out function
 	time_t when, when2;
@@ -59,6 +59,9 @@ void scheduler(char* outfile, int limit, int total){
 	shmPTR[0] = 0;
 	shmID1 = shmget(key1, sizeof(struct PCB[18]), IPC_CREAT | IPC_EXCL | 0777);
 	pcbPTR = (struct PCB *) shmat(shmID, NULL, 0);
+	pcbPTR[0].PCTime = 1234;
+	pcbPTR[1].PCTime = 5678;
+	printf("Parent shared mem: %li, %li \n", pcbPTR[0].PCTime, pcbPTR[1].PCTime);
 	//Initializing pids to -1 
 	for(k = 0; k < total; k++){
 		pid[k] = -1;
@@ -81,12 +84,11 @@ void scheduler(char* outfile, int limit, int total){
 			if(shmPTR[0] >= (launchTime + timeBetween)){
 				if((pid[i] = fork()) == 0){
 				//Converting key, shmID and life to char* for passing to exec.
-					printf("Time of child split: %ld \n", shmPTR[0]);
+					printf("Key1: %ld \n", key1);
 					sprintf(parameter1, "%li", key);
-					sprintf(parameter2, "%li", shmID);
-					sprintf(parameter3, "%li", quantum);
-					sprintf(parameter4, "%li", key1);
-					char * args[] = {parameter1, parameter2, parameter3, parameter4, NULL};
+					sprintf(parameter2, "%li", quantum);
+					sprintf(parameter3, "%li", key1);
+					char * args[] = {parameter1, parameter2, parameter3, NULL};
 					execvp("./child\0", args);
 				}
 				else{
