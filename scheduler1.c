@@ -16,25 +16,33 @@ void intHandler(int dummy) {
     keepRunning = 0;
 }
 
+struct PCB{
+	unsigned long PCTime, totalTime, lastQuanta;
+	unsigned int priority;
+	pid_t localPid;
+};
+
 void scheduler(char* outfile, int limit, int total){
 	/*Variables for the keeping track of pids, a loop variable, waitPID status, how many processes are alive, a flag for if there have been any children spawned, a flag for if the overall total has been reached, a flag for if the time limit has been reached, and a flag for if the instant limit has been reached.*/
 	int i = 0, k, status, totalSpawn = 0, alive = 1, noChildFlag = 1, totalFlag = 0, timeFlag = 0, limitFlag = 0;
 	//Variables for process nanoseconds, life, shared memory ID, seconds, and the timer increment, respectively.
-	unsigned long quantum = 500000, shmID, increment = 0, timeBetween = 0, launchTime = 0;
+	unsigned long quantum = 500000, shmID, shmID1, increment = 0, timeBetween = 0, launchTime = 0;
+	struct PCB * pcbPTR;
 	//Pointer for the shared memory timer
 	unsigned long * shmPTR;
 	//Character pointers for arguments to pass through exec
-	char * parameter[32], parameter1[32], parameter2[32], parameter3[32];
+	char * parameter[32], parameter1[32], parameter2[32], parameter3[32], parameter4[32];
 	pid_t pid[total], endID = 1; 
 	//Time variables for the time out function
 	time_t when, when2;
 	//File pointers for input and output, respectively
 	FILE * outPut;
 	//Key variable for shared memory access.
-	unsigned long key;
+	unsigned long key, key1;
 	srand(time(0));
 	timeBetween = (rand() % 300000000);
 	key = rand();
+	key1 = rand();
 	//Setting initial time for later check.
 	time(&when);
 	outPut = fopen(outfile, "a");
@@ -49,6 +57,8 @@ void scheduler(char* outfile, int limit, int total){
 	shmID = shmget(key, sizeof(unsigned long), IPC_CREAT | IPC_EXCL | 0777);
 	shmPTR = (unsigned long *) shmat(shmID, NULL, 0);
 	shmPTR[0] = 0;
+	shmID1 = shmget(key1, sizeof(struct PCB[18]), IPC_CREAT | IPC_EXCL | 0777);
+	pcbPTR = (struct PCB *) shmat(shmID, NULL, 0);
 	//Initializing pids to -1 
 	for(k = 0; k < total; k++){
 		pid[k] = -1;
@@ -75,7 +85,8 @@ void scheduler(char* outfile, int limit, int total){
 					sprintf(parameter1, "%li", key);
 					sprintf(parameter2, "%li", shmID);
 					sprintf(parameter3, "%li", quantum);
-					char * args[] = {parameter1, parameter2, parameter3, NULL};
+					sprintf(parameter4, "%li", key1);
+					char * args[] = {parameter1, parameter2, parameter3, parameter4, NULL};
 					execvp("./child\0", args);
 				}
 				else{
