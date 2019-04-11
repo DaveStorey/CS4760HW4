@@ -18,14 +18,14 @@ void intHandler(int dummy) {
 }
 
 struct PCB{
-	unsigned long PCTime, totalTime, lastQuanta;
-	unsigned int priority;
+	unsigned long PCTime, totalTime, lastQuanta, timeClock;
+	unsigned int priority, logicalNum;
 	pid_t localPid;
 };
 
 struct mesg_buffer{
 	long mesg_type;
-	char mesg_text[50];
+	int mesg_data[10];
 }message;
 
 void scheduler(char* outfile, int limit, int total){
@@ -33,9 +33,8 @@ void scheduler(char* outfile, int limit, int total){
 	int i = 0, k, status, totalSpawn = 0, alive = 1, noChildFlag = 1, totalFlag = 0, timeFlag = 0, limitFlag = 0, msgid;
 	//Variables for process nanoseconds, life, shared memory ID, seconds, and the timer increment, respectively.
 	unsigned long quantum = 500000, shmID, shmID1, increment = 0, timeBetween = 0, launchTime = 0;
-	struct PCB * pcbPTR;
 	//Pointer for the shared memory timer
-	unsigned long * shmPTR;
+	struct PCB * shmPTR;
 	//Character pointers for arguments to pass through exec
 	char * parameter[32], parameter1[32], parameter2[32], parameter3[32], parameter4[32];
 	pid_t pid[total], endID = 1; 
@@ -63,52 +62,58 @@ void scheduler(char* outfile, int limit, int total){
 	}
 	
 	//Get and access shared memory, setting initial timer state to 0.
-	shmID = shmget(key, sizeof(unsigned long), IPC_CREAT | IPC_EXCL | 0777);
-	shmPTR = (unsigned long *) shmat(shmID, (void *) 0, 0);
-	shmPTR[0] = 0;
-	shmID1 = shmget(key1, sizeof(struct PCB)*18, IPC_CREAT | IPC_EXCL | 0777);
+	shmID = shmget(key, sizeof(struct PCB) * 19, IPC_CREAT | IPC_EXCL | 0777);
+	shmPTR = (struct PCB *) shmat(shmID, (void *) 0, 0);
+	shmPTR[0].timeClock = 0;
+	/*shmID1 = shmget(key1, sizeof(struct PCB)*18, IPC_CREAT | IPC_EXCL | 0777);
 	pcbPTR = (struct PCB *) shmat(shmID, (void *) 0, 0);
-	pcbPTR[0].PCTime = 1234;
+	pcbPTR[0].PCTime = 1234;*/
 	//Initializing pids to -1 
 	for(k = 0; k < total; k++){
 		pid[k] = -1;
 	}
 	//Call to signal handler for ctrl-c
 	signal(SIGINT, intHandler);
-	increment = rand() % 5000000;
-	printf("Parent shmID1: %li; \n", shmID1);
+	increment = (rand() + 10000) % 5000000;
 	//While loop keeps running until all children are dead, ctrl-c, or time is reached.
 	while((alive > 0) && (keepRunning == 1) && (timeFlag == 0)){
 		time(&when2);
-		if ((when2 - when) >= 3){
+		if ((when2 - when) >= 10){
 			timeFlag = 1;
 		}
 		//Incrementing the timer.
-		shmPTR[0] += increment;
+		shmPTR[0].timeClock += increment;
 		/*If statement will only run check for new children to spawn if limit has not been hit.  If limit has been hit, it will allow the clock to continue to increment to allow currently alive children to naturally die.*/
 		if((totalFlag == 0) && (limitFlag == 0)){
 		//If statement to spawn child if timer has passed its birth time.
-			if(shmPTR[0] >= (launchTime + timeBetween)){
+			if(shmPTR[0].timeClock >= (launchTime + timeBetween)){
 				if((pid[i] = fork()) == 0){
 				//Converting key, shmID and life to char* for passing to exec.
 					sprintf(parameter1, "%li", key);
 					sprintf(parameter2, "%li", quantum);
-					sprintf(parameter3, "%li", key1);
-					sprintf(parameter4, "%li", msgKey);
+					sprintf(parameter3, "%li", msgKey);
+					sprintf(parameter4, "%d", i+1);
+					int level = rand() % 10;
+					if (level <=1)
+						shmPTR[i+1].priority = 0;
+					else{
+						shmPTR[i+1].priority = 1;
+					}
+					shmPTR[i+1].logicalNum = i+1;
 					char * args[] = {parameter1, parameter2, parameter3, parameter4, NULL};
+					printf("Launching child %d\n", getpid());
 					execvp("./child\0", args);
 				}
 				else{
 				//If statement to reset alive counter after getting into while loop initially
-					char messageText[] = "I love you!\n", pid[i];
-					strcpy(message.mesg_text, messageText);
+					mesg_data[0]
 					msgsnd(msgid, &message, sizeof(message), 0);
 					if (noChildFlag > 0){
 						alive--;
 						noChildFlag = 0;
 					}
 				//Setting seconds to high number for above loop protecting against twin children.
-					launchTime = shmPTR[0];
+					launchTime = shmPTR[0].timeClock;
 					alive++;
 					totalSpawn++;
 					i++;
@@ -126,19 +131,7 @@ void scheduler(char* outfile, int limit, int total){
 			for(k = 0; k <= i; k++){
 				if(endID == pid[k]){
 					alive--;
-					if (alive >= 0){
-						if (WIFEXITED(status)){
-							limitFlag = 0;
-							fprintf(outPut, "Child process %d terminated at %li nanoseconds.\n", pid[k], shmPTR[0]);
-						}
-						else if (WIFSIGNALED(status)){
-							printf("Child ended with an uncaught signal, %d.\n", status);
-							limitFlag = 0;
-						}
-						else if (WIFSTOPPED(status)){
-							printf("Child process has stopped.\n");
-						}
-					}
+					limitFlag = 0;
 				}
 			}
 		}
@@ -152,20 +145,26 @@ void scheduler(char* outfile, int limit, int total){
 	}
 	if(timeFlag == 1){
 		printf("Program has reached its allotted time, exiting.\n");
-		fprintf(outPut, "Scheduler terminated at %li nanoseconds due to time limit.\n",  shmPTR[0]);
+		fprintf(outPut, "Scheduler terminated at %li nanoseconds due to time limit.\n",  shmPTR[0].timeClock);
 	}
 	if(totalFlag == 1){
 		printf("Program has reached its allotted children, exiting.\n");
-		fprintf(outPut, "Scheduler terminated at %li nanoseconds due to process limit.\n",  shmPTR[0]);
+		fprintf(outPut, "Scheduler terminated at %li nanoseconds due to process limit.\n",  shmPTR[0].timeClock);
 	}
 	if(keepRunning == 0){
 		printf("Terminated due to ctrl-c signal.\n");
-		fprintf(outPut, "Scheduler terminated at %li nanoseconds due to ctrl-c signal.\n",  shmPTR[0]);
+		fprintf(outPut, "Scheduler terminated at %li nanoseconds due to ctrl-c signal.\n",  shmPTR[0].timeClock);
+	}
+	if(alive > 0){
+	int j = 0;
+	printf("Killing children\n");
+		while(pid[j] != -1){
+			kill(pid[j], SIGQUIT);
+			j++;
+		}
 	}
 	shmdt(shmPTR);
-	shmdt(pcbPTR);
 	shmctl(shmID, IPC_RMID, NULL);
-	shmctl(shmID1, IPC_RMID, NULL);
 	msgctl(msgid, IPC_RMID, NULL);
 	fclose(outPut);
 }
