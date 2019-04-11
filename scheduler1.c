@@ -57,10 +57,11 @@ void scheduler(char* outfile, int limit, int total){
 	shmID = shmget(key, sizeof(unsigned long), IPC_CREAT | IPC_EXCL | 0777);
 	shmPTR = (unsigned long *) shmat(shmID, NULL, 0);
 	shmPTR[0] = 0;
-	shmID1 = shmget(key1, sizeof(struct PCB[18]), IPC_CREAT | IPC_EXCL | 0777);
+	shmID1 = shmget(key1, sizeof(struct PCB)*18, IPC_CREAT | IPC_EXCL | 0777);
 	pcbPTR = (struct PCB *) shmat(shmID, NULL, 0);
-	pcbPTR[0].PCTime = 1234;
-	pcbPTR[1].PCTime = 5678;
+	for (int z = 0; z < 18; z++){
+		pcbPTR[z].PCTime = 1234;
+	}
 	printf("Parent shared mem: %li, %li \n", pcbPTR[0].PCTime, pcbPTR[1].PCTime);
 	//Initializing pids to -1 
 	for(k = 0; k < total; k++){
@@ -84,7 +85,6 @@ void scheduler(char* outfile, int limit, int total){
 			if(shmPTR[0] >= (launchTime + timeBetween)){
 				if((pid[i] = fork()) == 0){
 				//Converting key, shmID and life to char* for passing to exec.
-					printf("Key1: %ld \n", key1);
 					sprintf(parameter1, "%li", key);
 					sprintf(parameter2, "%li", quantum);
 					sprintf(parameter3, "%li", key1);

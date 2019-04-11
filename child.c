@@ -17,6 +17,7 @@ int main(int argc, char * argv[]){
 	pid_t pid = getpid();
 	unsigned long * shmPTR;
 	struct PCB * pdb;
+	printf("Child %d PDB address: %p \n",getpid(), pdb);
 	unsigned long shmID1;
 	unsigned long key = strtoul(argv[0], &ptr, 10);
 	unsigned long life = strtoul(argv[1], &ptr, 10);
@@ -27,6 +28,7 @@ int main(int argc, char * argv[]){
 	shmPTR = (unsigned long *) shmat(shmID, NULL, 0);
 	shmID1 = shmget(key1, sizeof(struct PCB[18]), O_RDONLY);
 	pdb = (struct PCB *) shmat(shmID1, NULL, 0);
+	printf("Child %d PDB address: %p \n",getpid(), pdb);
 	existence = shmPTR[0] + life;
 	printf("Shared Memory: %li \n", pdb[0].PCTime);
 	while(shmPTR[0] < existence);
